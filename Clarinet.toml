@@ -12,6 +12,10 @@ depends_on = []
 path = "contracts/node-registry.clar"
 depends_on = []
 
+[contracts.node-rewards]
+path = "contracts/node-rewards.clar"
+depends_on = []
+
 [repl]
 costs_version = 2
 parser_version = 2
