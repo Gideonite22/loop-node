@@ -180,20 +180,6 @@
 ;; Public Functions
 ;; -----------------------------------------------
 
-;; Set or update a participant's voting power (would typically be called by a token contract)
-(define-public (set-voting-power (participant principal) (power uint))
-  (let (
-    (caller tx-sender)
-  )
-    (asserts! (or (is-eq caller (var-get governance-admin)) (contract-call? 'ST1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRTPGZGM.node-registry is-admin caller)) ERR-NOT-AUTHORIZED)
-    
-    (map-set voting-power 
-      { participant: participant }
-      { power: power }
-    )
-    (ok true)
-  )
-)
 
 ;; Create a new governance proposal
 (define-public (create-proposal 
@@ -291,45 +277,6 @@
   )
 )
 
-;; Execute an approved proposal after voting period ends
-(define-public (execute-proposal (proposal-id uint))
-  (let (
-    (proposal (unwrap! (map-get? proposals { proposal-id: proposal-id }) ERR-PROPOSAL-NOT-FOUND))
-    (current-block (get-current-block-height))
-  )
-    ;; Check voting period has ended
-    (asserts! (> current-block (get expires-at-block proposal)) ERR-VOTING-PERIOD-ACTIVE)
-    
-    ;; Check proposal hasn't been executed
-    (asserts! (not (get executed proposal)) ERR-PROPOSAL-EXPIRED)
-    
-    ;; Check proposal was approved
-    (asserts! (is-proposal-approved proposal-id) ERR-PROPOSAL-NOT-APPROVED)
-    
-    ;; Execute based on proposal type
-    (if (is-eq (get proposal-type proposal) PROPOSAL-TYPE-PARAMETER)
-      (match (get parameter-key proposal) 
-        key (match (get parameter-value proposal)
-              value (execute-parameter-proposal key value)
-              ERR-INVALID-PARAMETER)
-        ERR-INVALID-PARAMETER)
-      (if (is-eq (get proposal-type proposal) PROPOSAL-TYPE-PROTOCOL)
-        (match (get contract-change proposal)
-          change (execute-protocol-proposal change)
-          ERR-INVALID-PARAMETER)
-        (match (get parameter-value proposal)
-          policy (execute-authorization-proposal policy)
-          ERR-INVALID-PARAMETER)))
-    
-    ;; Mark proposal as executed
-    (map-set proposals
-      { proposal-id: proposal-id }
-      (merge proposal { executed: true })
-    )
-    
-    (ok true)
-  )
-)
 
 ;; Change governance admin - only callable by current admin
 (define-public (set-governance-admin (new-admin principal))

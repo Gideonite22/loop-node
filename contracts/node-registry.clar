@@ -67,15 +67,6 @@
   )
 )
 
-;; Add a node ID to owner's list
-(define-private (add-node-to-owner (owner principal) (node-id (buff 32)))
-  (let ((current-nodes (default-to { node-ids: (list) } (map-get? nodes-by-owner { owner: owner }))))
-    (map-set nodes-by-owner 
-      { owner: owner }
-      { node-ids: (append (get node-ids current-nodes) node-id) }
-    )
-  )
-)
 
 ;; Validate node status is one of the defined constants
 (define-private (is-valid-status (status uint))
@@ -96,45 +87,6 @@
 
 ;; Public functions
 
-;; Register a new IoT node
-(define-public (register-node 
-    (node-id (buff 32))
-    (location (optional (tuple (latitude (string-utf8 40)) (longitude (string-utf8 40)))))
-    (capabilities (list 10 (string-utf8 64)))
-    (firmware-version (string-utf8 32))
-    (metadata (buff 1024))
-  )
-  (let ((current-time (unwrap-panic (get-block-info? time u0))))
-    ;; Check if node already exists
-    (asserts! (is-none (map-get? nodes { node-id: node-id })) ERR-NODE-ALREADY-EXISTS)
-    ;; Check metadata size
-    (asserts! (<= (len metadata) MAX-METADATA-LENGTH) ERR-METADATA-TOO-LARGE)
-    
-    ;; Register the node
-    (map-set nodes
-      { node-id: node-id }
-      {
-        owner: tx-sender,
-        status: STATUS-ACTIVE,
-        location: location,
-        capabilities: capabilities,
-        firmware-version: firmware-version,
-        registration-time: current-time,
-        last-updated: current-time,
-        metadata: metadata
-      }
-    )
-    
-    ;; Update owner's node list
-    (add-node-to-owner tx-sender node-id)
-    
-    ;; Update node counters
-    (var-set total-nodes (+ (var-get total-nodes) u1))
-    (var-set active-nodes (+ (var-get active-nodes) u1))
-    
-    (ok node-id)
-  )
-)
 
 ;; Update node status (active, inactive, suspended)
 (define-public (update-node-status (node-id (buff 32)) (new-status uint))
@@ -238,31 +190,6 @@
         last-updated: current-time
       })
     )
-    
-    (ok true)
-  )
-)
-
-;; Transfer node ownership to another principal
-(define-public (transfer-node-ownership (node-id (buff 32)) (new-owner principal))
-  (let (
-    (node (unwrap! (map-get? nodes { node-id: node-id }) ERR-NODE-NOT-FOUND))
-    (current-time (unwrap-panic (get-block-info? time u0)))
-  )
-    ;; Check authorization
-    (asserts! (is-node-owner node-id tx-sender) ERR-NOT-NODE-OWNER)
-    
-    ;; Update node owner
-    (map-set nodes
-      { node-id: node-id }
-      (merge node { 
-        owner: new-owner,
-        last-updated: current-time
-      })
-    )
-    
-    ;; Add node to new owner's list
-    (add-node-to-owner new-owner node-id)
     
     (ok true)
   )

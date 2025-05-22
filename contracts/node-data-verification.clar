@@ -66,15 +66,6 @@
 
 ;; Private functions
 
-;; Generate a unique submission ID
-(define-private (generate-submission-id (node principal) (data-hash (buff 32)))
-  (begin
-    (var-set submission-counter (+ (var-get submission-counter) u1))
-    (hash160 (concat (unwrap-panic (to-consensus-buff? node)) 
-                     (concat data-hash (unwrap-panic (to-consensus-buff? (var-get submission-counter))))))
-  )
-)
-
 ;; Add a submission ID to a node's history
 (define-private (add-to-node-history (node principal) (submission-id (buff 32)))
   (let ((current-history (default-to { submission-ids: (list) } (map-get? node-submission-history { node: node }))))
@@ -85,11 +76,6 @@
   )
 )
 
-;; Generate a random challenge for a node
-(define-private (generate-challenge)
-  (sha256 (concat (unwrap-panic (to-consensus-buff? block-height)) 
-                 (unwrap-panic (to-consensus-buff? burn-block-height))))
-)
 
 ;; Validate if a challenge is still active
 (define-private (is-challenge-valid (challenge-info { challenge: (buff 32), block-height: uint }))
@@ -138,59 +124,7 @@
   )
 )
 
-;; Request a challenge for data submission
-(define-public (request-challenge)
-  (begin
-    (asserts! (is-node-registered tx-sender) ERR-NODE-NOT-REGISTERED)
-    (let ((challenge (generate-challenge)))
-      (map-set node-challenges 
-        { node: tx-sender } 
-        { challenge: challenge, block-height: block-height })
-      (ok challenge)
-    )
-  )
-)
 
-;; Submit data with challenge response
-(define-public (submit-data 
-  (data-hash (buff 32)) 
-  (challenge-response (buff 32)) 
-  (metadata (optional (string-utf8 500))))
-  (let (
-    (challenge-info (unwrap! (get-node-challenge tx-sender) ERR-NO-ACTIVE-CHALLENGE))
-    (submission-id (generate-submission-id tx-sender data-hash))
-  )
-    ;; Verify challenge is valid
-    (asserts! (is-challenge-valid challenge-info) ERR-CHALLENGE-EXPIRED)
-    
-    ;; Verify response matches expected signature or proof
-    (asserts! (is-eq challenge-response (get challenge challenge-info)) ERR-INVALID-RESPONSE)
-    
-    ;; Verify submission doesn't already exist
-    (asserts! (is-none (get-data-submission submission-id)) ERR-DATA-ALREADY-SUBMITTED)
-    
-    ;; Store the submission
-    (map-set data-submissions
-      { submission-id: submission-id }
-      { 
-        node: tx-sender,
-        data-hash: data-hash,
-        timestamp: (unwrap-panic (get-block-info? time block-height)),
-        block-height: block-height,
-        verified: true,
-        metadata: metadata
-      }
-    )
-    
-    ;; Add to node's history
-    (add-to-node-history tx-sender submission-id)
-    
-    ;; Clear the challenge
-    (map-delete node-challenges { node: tx-sender })
-    
-    (ok submission-id)
-  )
-)
 
 ;; Flag a suspicious data submission
 (define-public (flag-submission (submission-id (buff 32)) (reason (string-utf8 200)))

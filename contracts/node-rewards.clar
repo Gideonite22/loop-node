@@ -96,16 +96,6 @@
   )
 )
 
-;; Update a node's reputation score
-(define-private (update-node-reputation (node-id (buff 32)) (new-reputation uint))
-  (match (map-get? nodes { node-id: node-id })
-    node (map-set nodes
-           { node-id: node-id }
-           (merge node { reputation: (min new-reputation REPUTATION-SCALE) })
-         )
-    false
-  )
-)
 
 ;; Read-only functions
 
@@ -190,25 +180,6 @@
   )
 )
 
-;; Submit performance metrics for a node and update its reputation
-(define-public (submit-performance-metrics (node-id (buff 32)) (uptime uint) (quality uint) (contribution uint))
-  (begin
-    ;; Validate inputs
-    (asserts! (check-node-owner node-id) ERR-NOT-AUTHORIZED)
-    (asserts! (<= uptime u100) ERR-INVALID-UPTIME)
-    (asserts! (<= quality u100) ERR-INVALID-QUALITY)
-    (asserts! (<= contribution u100) ERR-INVALID-CONTRIBUTION)
-    
-    ;; Calculate and update reputation
-    (let
-      (
-        (new-reputation (calculate-reputation uptime quality contribution))
-      )
-      (update-node-reputation node-id new-reputation)
-      (ok new-reputation)
-    )
-  )
-)
 
 ;; Claim rewards for a node
 (define-public (claim-rewards (node-id (buff 32)))
